@@ -19,6 +19,7 @@ export default function App() {
   const [selected, setSelected] = useState<string | null>(null);
   const [confirmClear, setConfirmClear] = useState(false);
   const [clearing, setClearing] = useState(false);
+  const [activeTypes, setActiveTypes] = useState<Set<string>>(new Set());
   const canvasRef = useRef<GraphCanvasHandle>(null);
 
   useEffect(() => {
@@ -59,6 +60,29 @@ export default function App() {
     }
     reload(collection);
   }, [collection, reload]);
+
+  // Когда граф загружается — все типы активны по умолчанию
+  useEffect(() => {
+    if (typeCounts.length > 0 && activeTypes.size === 0) {
+      setActiveTypes(new Set(typeCounts.map(([t]) => t)));
+    }
+  }, [graph.nodes]);
+
+  const toggleType = useCallback((type: string) => {
+    setActiveTypes((prev) => {
+      const next = new Set(prev);
+      if (next.has(type)) {
+        if (next.size > 1) next.delete(type);
+      } else {
+        next.add(type);
+      }
+      return next;
+    });
+  }, []);
+
+  const resetTypes = useCallback(() => {
+    setActiveTypes(new Set(graph.nodes.map((n) => n.type)));
+  }, [graph.nodes]);
 
   const typeColors = useMemo(
     () => buildTypeColors(graph.nodes.map((n) => n.type)),
@@ -115,6 +139,7 @@ export default function App() {
             typeColors={typeColors}
             selected={selected}
             onSelect={setSelected}
+            activeTypes={activeTypes}
           />
 
           {graphError && (
@@ -137,21 +162,42 @@ export default function App() {
           )}
 
           {typeCounts.length > 0 && (
-            <div className="absolute bottom-4 left-4 max-w-[300px] rounded-xl border border-line bg-panel/85 p-2.5 shadow-lg shadow-black/30 backdrop-blur">
-              <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-ink-mute">
-                Типы сущностей
-              </p>
-              <div className="flex flex-wrap gap-x-3 gap-y-1">
-                {typeCounts.map(([type, count]) => (
-                  <span key={type} className="flex items-center gap-1.5 text-[11px] text-ink-dim">
-                    <span
-                      className="h-2 w-2 rounded-full"
-                      style={{ background: colorFor(typeColors, type) }}
-                    />
-                    {type}
-                    <span className="text-ink-mute">{count}</span>
-                  </span>
-                ))}
+            <div className="absolute bottom-4 left-4 max-w-[360px] rounded-xl border border-line bg-panel/85 p-2.5 shadow-lg shadow-black/30 backdrop-blur">
+              <div className="mb-1.5 flex items-center justify-between">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-ink-mute">
+                  Фильтр по типам
+                </p>
+                {activeTypes.size !== typeCounts.length && (
+                  <button
+                    onClick={resetTypes}
+                    className="text-[10px] text-violet-400 transition hover:text-violet-300"
+                  >
+                    Сбросить
+                  </button>
+                )}
+              </div>
+              <div className="flex flex-wrap gap-x-2 gap-y-1.5">
+                {typeCounts.map(([type, count]) => {
+                  const active = activeTypes.has(type);
+                  return (
+                    <button
+                      key={type}
+                      onClick={() => toggleType(type)}
+                      className={`rounded-full px-2 py-1 text-[11px] transition-all ${
+                        active
+                          ? "bg-violet-900/50 text-ink shadow-sm"
+                          : "opacity-35 grayscale"
+                      }`}
+                    >
+                      <span
+                        className="mr-1.5 inline-block h-2 w-2 rounded-full"
+                        style={{ background: colorFor(typeColors, type) }}
+                      />
+                      {type}
+                      <span className="ml-1 text-ink-mute">{count}</span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
           )}
