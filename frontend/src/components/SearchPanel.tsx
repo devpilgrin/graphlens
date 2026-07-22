@@ -64,6 +64,11 @@ export default function SearchPanel({ collection, typeColors, onFocusEntity }: P
 
       {resp && (
         <>
+          {resp.warning && (
+            <p className="rounded-lg border border-amber-800/60 bg-amber-950/40 px-3 py-2 text-xs leading-relaxed text-amber-300">
+              {resp.warning}
+            </p>
+          )}
           {resp.entities.length > 0 && (
             <div>
               <p className="mb-1.5 text-[11px] text-ink-mute">Найденные сущности</p>
@@ -115,7 +120,29 @@ export default function SearchPanel({ collection, typeColors, onFocusEntity }: P
                     вектор {r.vector_score.toFixed(3)}
                   </span>
                 </div>
-                <p className="text-xs leading-relaxed text-ink-dim">{truncate(r.text)}</p>
+                {r.text ? (
+                  <p className="text-xs leading-relaxed text-ink-dim">{truncate(r.text)}</p>
+                ) : (
+                  <p className="text-xs italic text-ink-mute">
+                    Текст недоступен - в метаданных только:
+                  </p>
+                )}
+                {Object.keys(r.payload).filter((k) => k !== "text").length > 0 && (
+                  <div className="mt-1.5 flex flex-wrap gap-1">
+                    {Object.entries(r.payload)
+                      .filter(([k]) => k !== "text")
+                      .slice(0, 6)
+                      .map(([k, v]) => (
+                        <span
+                          key={k}
+                          className="rounded-md bg-canvas px-1.5 py-0.5 text-[10px] text-ink-mute"
+                          title={String(v)}
+                        >
+                          {k}: {truncate(String(v), 24)}
+                        </span>
+                      ))}
+                  </div>
+                )}
               </article>
             ))}
           </div>

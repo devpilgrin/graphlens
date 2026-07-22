@@ -49,6 +49,41 @@ class QdrantSource:
             else None,
         }
 
+    def probe(self, collection: str) -> dict:
+        """Проверка коллекции: есть ли текст в метаданных (payload).
+
+        Полные данные могут храниться в payload - тогда GraphLens может
+        извлекать граф и показывать тексты. Если текста нет (только вектора
+        и служебные метаданные) - фронтенд показывает предупреждение.
+        """
+        info = self.collection_info(collection)
+        points, _ = self.client.scroll(collection, limit=3, with_payload=True, with_vectors=False)
+        fields: list[str] = []
+        if points:
+            seen: set[str] = set()
+            for p in points:
+                seen.update((p.payload or {}).keys())
+            fields = sorted(seen)
+        text_field = None
+        if settings.qdrant_text_field:
+            text_field = settings.qdrant_text_field
+        else:
+            for p in points:
+                payload = p.payload or {}
+                for name in _TEXT_CANDIDATES:
+                    if isinstance(payload.get(name), str) and payload[name].strip():
+                        text_field = name
+                        break
+                if text_field:
+                    break
+        return {
+            "collection": collection,
+            "points": info["points"],
+            "has_text": text_field is not None,
+            "text_field": text_field,
+            "fields": fields,
+        }
+
     def _detect_text_field(self, collection: str) -> str:
         """Определяет поле с текстом по первой точке коллекции."""
         if settings.qdrant_text_field:
@@ -62,8 +97,9 @@ class QdrantSource:
                 log.info("поле текста определено: '%s'", name)
                 return name
         raise ValueError(
-            f"Не найдено текстовое поле в payload. Есть поля: {list(payload.keys())}. "
-            f"Задайте QDRANT_TEXT_FIELD в .env"
+            f"В коллекции '{collection}' нет текста в метаданных - только вектора "
+            f"и поля {list(payload.keys())}. Построение графа невозможно: "
+            f"используйте коллекцию, где payload содержит текст чанков."
         )
 
     def iter_chunks(self, collection: str, batch: int = 128) -> Iterator[Chunk]:

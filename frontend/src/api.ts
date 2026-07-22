@@ -1,5 +1,6 @@
 import type {
   ApiGraph,
+  CollectionProbe,
   ExtractStatus,
   GraphStats,
   QdrantCollection,
@@ -23,6 +24,11 @@ export const api = {
 
   collections: () =>
     request<{ collections: QdrantCollection[] }>("/api/qdrant/collections"),
+
+  probe: (name: string) =>
+    request<CollectionProbe>(
+      `/api/qdrant/collections/${encodeURIComponent(name)}/probe`,
+    ),
 
   graph: (collection: string, limit = 500) =>
     request<ApiGraph>(

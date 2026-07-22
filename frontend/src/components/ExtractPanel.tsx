@@ -4,6 +4,7 @@ import type { ExtractStatus } from "../types";
 
 interface Props {
   collection: string;
+  hasText: boolean;
   onFinished: () => void;
 }
 
@@ -18,7 +19,7 @@ function Counter({ label, value, tone }: { label: string; value: number; tone?: 
   );
 }
 
-export default function ExtractPanel({ collection, onFinished }: Props) {
+export default function ExtractPanel({ collection, hasText, onFinished }: Props) {
   const [status, setStatus] = useState<ExtractStatus | null>(null);
   const [limit, setLimit] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -103,21 +104,28 @@ export default function ExtractPanel({ collection, onFinished }: Props) {
       </h2>
 
       {!running ? (
-        <div className="flex gap-2">
-          <input
-            value={limit}
-            onChange={(e) => setLimit(e.target.value.replace(/\D/g, ""))}
-            placeholder="limit (все)"
-            inputMode="numeric"
-            className="w-24 rounded-xl border border-line bg-panel-2 px-3 py-2 text-sm placeholder:text-ink-mute focus:border-accent focus:outline-none"
-          />
-          <button
-            onClick={start}
-            disabled={!collection || starting}
-            className="flex-1 rounded-xl bg-amberacc px-4 py-2 text-sm font-semibold text-black shadow-md shadow-amberacc/20 transition hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            {starting ? "Запуск…" : "Построить граф"}
-          </button>
+        <div className="flex flex-col gap-2">
+          {!hasText && (
+            <p className="rounded-lg border border-amber-800/60 bg-amber-950/40 px-3 py-2 text-xs text-amber-300">
+              В метаданных коллекции нет текста - извлечение невозможно.
+            </p>
+          )}
+          <div className="flex gap-2">
+            <input
+              value={limit}
+              onChange={(e) => setLimit(e.target.value.replace(/\D/g, ""))}
+              placeholder="limit (все)"
+              inputMode="numeric"
+              className="w-24 rounded-xl border border-line bg-panel-2 px-3 py-2 text-sm placeholder:text-ink-mute focus:border-accent focus:outline-none"
+            />
+            <button
+              onClick={start}
+              disabled={!collection || !hasText || starting}
+              className="flex-1 rounded-xl bg-amberacc px-4 py-2 text-sm font-semibold text-black shadow-md shadow-amberacc/20 transition hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {starting ? "Запуск…" : "Построить граф"}
+            </button>
+          </div>
         </div>
       ) : (
         <div className="flex flex-col gap-2 rounded-xl border border-line bg-panel-2 p-3">

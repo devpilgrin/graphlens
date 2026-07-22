@@ -4,6 +4,14 @@ export interface QdrantCollection {
   vectors: number | null;
 }
 
+export interface CollectionProbe {
+  collection: string;
+  points: number;
+  has_text: boolean;
+  text_field: string | null;
+  fields: string[];
+}
+
 export interface GraphStats {
   entities: number;
   relations: number;
@@ -47,6 +55,7 @@ export interface SearchResult {
 
 export interface SearchResponse {
   question: string;
+  warning: string | null;
   entities: SearchEntity[];
   subgraph: ApiGraph;
   results: SearchResult[];

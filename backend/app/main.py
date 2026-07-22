@@ -68,6 +68,19 @@ def collections() -> dict:
         raise HTTPException(502, f"Qdrant недоступен: {exc}")
 
 
+@app.get("/api/qdrant/collections/{name}/probe")
+def collection_probe(name: str) -> dict:
+    """Проверка коллекции: есть ли текст в метаданных.
+
+    has_text=false -> фронтенд показывает предупреждение и не предлагает
+    построение графа. GraphLens работает только с данными из Qdrant.
+    """
+    try:
+        return qdrant.probe(name)
+    except Exception as exc:
+        raise HTTPException(404, f"Коллекция недоступна: {exc}")
+
+
 # ── Извлечение ──────────────────────────────────────────────────────────
 
 def _extract_worker(collection: str, limit: int | None, batch_size: int) -> None:
@@ -126,6 +139,19 @@ def _process_batch(collection: str, batch: list, pool: ThreadPoolExecutor) -> No
 
 @app.post("/api/extract")
 def start_extract(req: ExtractRequest) -> dict:
+    # Предпроверка: без текста в метаданных граф строить не из чего.
+    try:
+        probe = qdrant.probe(req.collection)
+    except Exception as exc:
+        raise HTTPException(404, f"Коллекция недоступна: {exc}")
+    if not probe["has_text"]:
+        raise HTTPException(422, {
+            "warning": "no_text_in_payload",
+            "message": f"В коллекции '{req.collection}' нет текста в метаданных "
+                       f"(поля: {', '.join(probe['fields'])}). Построение графа невозможно - "
+                       f"GraphLens работает только с данными из Qdrant.",
+            "fields": probe["fields"],
+        })
     with _job_lock:
         if _job["running"]:
             raise HTTPException(409, "Извлечение уже выполняется")

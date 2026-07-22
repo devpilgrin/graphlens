@@ -34,8 +34,12 @@ class HybridSearch:
         resp = self.llm.embeddings.create(model=settings.embedding_model, input=text)
         return resp.data[0].embedding
 
-    def _vector_search(self, collection: str, question: str, top_k: int) -> dict[Any, dict]:
-        """Векторный поиск: {qdrant_id: {score, text, payload}}."""
+    def _vector_search(self, collection: str, question: str, top_k: int) -> tuple[dict[Any, dict], str | None]:
+        """Векторный поиск: ({qdrant_id: {...}}, предупреждение | None).
+
+        Если в метаданных нет текста - чанки возвращаются без текста,
+        а вызывающий код получает предупреждение для пользователя.
+        """
         try:
             vector = self._embed(question)
             hits = self.qdrant.client.query_points(
@@ -43,13 +47,19 @@ class HybridSearch:
             ).points
         except Exception:
             log.exception("векторный поиск не удался - продолжаю только графом")
-            return {}
-        text_field = self.qdrant._detect_text_field(collection)
+            return {}, "Векторный поиск недоступен (ошибка эмбеддинга или Qdrant)."
+        try:
+            text_field = self.qdrant._detect_text_field(collection)
+            warning = None
+        except ValueError as exc:
+            text_field = None
+            warning = str(exc)
         return {
-            h.id: {"score": h.score, "text": (h.payload or {}).get(text_field, ""),
+            h.id: {"score": h.score,
+                   "text": (h.payload or {}).get(text_field, "") if text_field else "",
                    "payload": h.payload or {}}
             for h in hits
-        }
+        }, warning
 
     def search(self, collection: str, question: str, top_k: int | None = None) -> dict:
         top_k = top_k or settings.top_k_vector
@@ -66,7 +76,7 @@ class HybridSearch:
             subgraph = {"nodes": sub["nodes"], "edges": sub["edges"]}
 
         # 3. Векторный контур
-        vector_hits = self._vector_search(collection, question, top_k)
+        vector_hits, warning = self._vector_search(collection, question, top_k)
 
         # 4. Слияние
         results = []
@@ -83,7 +93,10 @@ class HybridSearch:
         # Чанки, найденные ТОЛЬКО графом (вне векторного топа) - дочитываем из Qdrant
         missing = [q for q in graph_chunk_ids if not any(str(r["qdrant_id"]) == q for r in results)]
         if missing:
-            text_field = self.qdrant._detect_text_field(collection)
+            try:
+                text_field = self.qdrant._detect_text_field(collection)
+            except ValueError:
+                text_field = None
             for qid in missing[: top_k]:
                 try:
                     points = self.qdrant.client.retrieve(collection, [self._cast_id(qid)], with_payload=True)
@@ -93,7 +106,7 @@ class HybridSearch:
                             "score": GRAPH_BOOST,
                             "vector_score": 0.0,
                             "via_graph": True,
-                            "text": (p.payload or {}).get(text_field, ""),
+                            "text": (p.payload or {}).get(text_field, "") if text_field else "",
                             "payload": p.payload or {},
                         })
                 except Exception:
@@ -103,6 +116,7 @@ class HybridSearch:
         return {
             "question": question,
             "collection": collection,
+            "warning": warning,
             "entities": entities,
             "subgraph": subgraph,
             "results": results[: top_k * 2],

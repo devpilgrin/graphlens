@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "./api";
-import type { ApiGraph, GraphStats, QdrantCollection } from "./types";
+import type { ApiGraph, CollectionProbe, GraphStats, QdrantCollection } from "./types";
 import { buildTypeColors, colorFor } from "./palette";
 import Header from "./components/Header";
 import GraphCanvas, { type GraphCanvasHandle } from "./components/GraphCanvas";
@@ -15,6 +15,7 @@ export default function App() {
   const [stats, setStats] = useState<GraphStats | null>(null);
   const [graph, setGraph] = useState<ApiGraph>({ nodes: [], edges: [] });
   const [graphError, setGraphError] = useState<string | null>(null);
+  const [probe, setProbe] = useState<CollectionProbe | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
   const [confirmClear, setConfirmClear] = useState(false);
   const [clearing, setClearing] = useState(false);
@@ -52,6 +53,10 @@ export default function App() {
 
   useEffect(() => {
     setSelected(null);
+    setProbe(null);
+    if (collection) {
+      api.probe(collection).then(setProbe).catch(() => setProbe(null));
+    }
     reload(collection);
   }, [collection, reload]);
 
@@ -118,6 +123,19 @@ export default function App() {
             </div>
           )}
 
+          {probe && !probe.has_text && (
+            <div className="absolute left-1/2 top-4 w-[520px] max-w-[90%] -translate-x-1/2 rounded-xl border border-amber-800/60 bg-amber-950/80 px-4 py-3 shadow-lg shadow-black/40 backdrop-blur">
+              <p className="text-sm font-semibold text-amber-300">
+                В коллекции «{probe.collection}» нет текста в метаданных
+              </p>
+              <p className="mt-1 text-xs leading-relaxed text-amber-200/70">
+                В payload только поля: {probe.fields.join(", ")}. Построение графа
+                невозможно - GraphLens работает только с данными из Qdrant.
+                Выберите коллекцию, где метаданные содержат текст чанков.
+              </p>
+            </div>
+          )}
+
           {typeCounts.length > 0 && (
             <div className="absolute bottom-4 left-4 max-w-[300px] rounded-xl border border-line bg-panel/85 p-2.5 shadow-lg shadow-black/30 backdrop-blur">
               <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-ink-mute">
@@ -156,7 +174,11 @@ export default function App() {
             />
           )}
 
-          <ExtractPanel collection={collection} onFinished={() => reload(collection)} />
+          <ExtractPanel
+            collection={collection}
+            hasText={probe?.has_text ?? true}
+            onFinished={() => reload(collection)}
+          />
 
           <div className="mt-auto border-t border-line pt-3">
             {!confirmClear ? (
