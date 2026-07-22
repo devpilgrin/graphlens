@@ -1,0 +1,197 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { api } from "./api";
+import type { ApiGraph, GraphStats, QdrantCollection } from "./types";
+import { buildTypeColors, colorFor } from "./palette";
+import Header from "./components/Header";
+import GraphCanvas, { type GraphCanvasHandle } from "./components/GraphCanvas";
+import SearchPanel from "./components/SearchPanel";
+import ExtractPanel from "./components/ExtractPanel";
+import NodeInfo from "./components/NodeInfo";
+
+export default function App() {
+  const [collections, setCollections] = useState<QdrantCollection[]>([]);
+  const [collection, setCollection] = useState("");
+  const [healthy, setHealthy] = useState<boolean | null>(null);
+  const [stats, setStats] = useState<GraphStats | null>(null);
+  const [graph, setGraph] = useState<ApiGraph>({ nodes: [], edges: [] });
+  const [graphError, setGraphError] = useState<string | null>(null);
+  const [selected, setSelected] = useState<string | null>(null);
+  const [confirmClear, setConfirmClear] = useState(false);
+  const [clearing, setClearing] = useState(false);
+  const canvasRef = useRef<GraphCanvasHandle>(null);
+
+  useEffect(() => {
+    api.health().then(() => setHealthy(true)).catch(() => setHealthy(false));
+    api
+      .collections()
+      .then(({ collections: list }) => {
+        setCollections(list);
+        if (list.length > 0) {
+          const fromUrl = new URLSearchParams(window.location.search).get("collection");
+          const preferred =
+            list.find((c) => c.name === fromUrl) ??
+            list.find((c) => c.name === "kb_chunks") ??
+            list[0];
+          setCollection(preferred.name);
+        }
+      })
+      .catch(() => setCollections([]));
+  }, []);
+
+  const reload = useCallback(async (col: string) => {
+    api.graphStats().then(setStats).catch(() => setStats(null));
+    if (!col) return;
+    try {
+      setGraph(await api.graph(col));
+      setGraphError(null);
+    } catch (e) {
+      setGraph({ nodes: [], edges: [] });
+      setGraphError(e instanceof Error ? e.message : String(e));
+    }
+  }, []);
+
+  useEffect(() => {
+    setSelected(null);
+    reload(collection);
+  }, [collection, reload]);
+
+  const typeColors = useMemo(
+    () => buildTypeColors(graph.nodes.map((n) => n.type)),
+    [graph.nodes],
+  );
+
+  const typeCounts = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const n of graph.nodes) m.set(n.type, (m.get(n.type) ?? 0) + 1);
+    return [...m.entries()].sort((a, b) => b[1] - a[1]);
+  }, [graph.nodes]);
+
+  const selectedNode = useMemo(
+    () => graph.nodes.find((n) => n.name === selected) ?? null,
+    [graph.nodes, selected],
+  );
+
+  const focusEntity = useCallback((name: string) => {
+    const found = canvasRef.current?.focusNode(name) ?? false;
+    if (!found) setSelected(null);
+  }, []);
+
+  const clearGraph = async () => {
+    if (!collection || clearing) return;
+    setClearing(true);
+    try {
+      await api.clearGraph(collection);
+      setSelected(null);
+      await reload(collection);
+    } catch (e) {
+      setGraphError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setClearing(false);
+      setConfirmClear(false);
+    }
+  };
+
+  return (
+    <div className="flex h-full flex-col">
+      <Header
+        collections={collections}
+        collection={collection}
+        onCollectionChange={setCollection}
+        stats={stats}
+        healthy={healthy}
+      />
+
+      <div className="flex min-h-0 flex-1">
+        <main className="relative min-w-0 flex-1">
+          <GraphCanvas
+            ref={canvasRef}
+            nodes={graph.nodes}
+            edges={graph.edges}
+            typeColors={typeColors}
+            selected={selected}
+            onSelect={setSelected}
+          />
+
+          {graphError && (
+            <div className="absolute left-4 top-4 rounded-lg border border-red-900/60 bg-red-950/70 px-3 py-2 text-xs text-red-300 backdrop-blur">
+              Не удалось загрузить граф: {graphError}
+            </div>
+          )}
+
+          {typeCounts.length > 0 && (
+            <div className="absolute bottom-4 left-4 max-w-[300px] rounded-xl border border-line bg-panel/85 p-2.5 shadow-lg shadow-black/30 backdrop-blur">
+              <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-ink-mute">
+                Типы сущностей
+              </p>
+              <div className="flex flex-wrap gap-x-3 gap-y-1">
+                {typeCounts.map(([type, count]) => (
+                  <span key={type} className="flex items-center gap-1.5 text-[11px] text-ink-dim">
+                    <span
+                      className="h-2 w-2 rounded-full"
+                      style={{ background: colorFor(typeColors, type) }}
+                    />
+                    {type}
+                    <span className="text-ink-mute">{count}</span>
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+        </main>
+
+        <aside className="flex w-[380px] shrink-0 flex-col gap-5 overflow-y-auto border-l border-line bg-panel p-4">
+          <SearchPanel
+            collection={collection}
+            typeColors={typeColors}
+            onFocusEntity={focusEntity}
+          />
+
+          {selectedNode && (
+            <NodeInfo
+              node={selectedNode}
+              edges={graph.edges}
+              typeColors={typeColors}
+              onFocus={focusEntity}
+              onClose={() => setSelected(null)}
+            />
+          )}
+
+          <ExtractPanel collection={collection} onFinished={() => reload(collection)} />
+
+          <div className="mt-auto border-t border-line pt-3">
+            {!confirmClear ? (
+              <button
+                onClick={() => setConfirmClear(true)}
+                disabled={!collection}
+                className="w-full rounded-xl border border-line px-4 py-2 text-sm text-ink-dim transition hover:border-red-800 hover:text-red-400 disabled:opacity-40"
+              >
+                Очистить граф
+              </button>
+            ) : (
+              <div className="flex flex-col gap-2 rounded-xl border border-red-900/60 bg-red-950/30 p-3">
+                <p className="text-xs text-red-300">
+                  Удалить весь граф коллекции «{collection}»? Это действие необратимо.
+                </p>
+                <div className="flex gap-2">
+                  <button
+                    onClick={clearGraph}
+                    disabled={clearing}
+                    className="flex-1 rounded-lg bg-red-700 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-red-600 disabled:opacity-50"
+                  >
+                    {clearing ? "Удаляю…" : "Да, удалить"}
+                  </button>
+                  <button
+                    onClick={() => setConfirmClear(false)}
+                    className="flex-1 rounded-lg border border-line px-3 py-1.5 text-xs text-ink-dim transition hover:text-ink"
+                  >
+                    Отмена
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </aside>
+      </div>
+    </div>
+  );
+}
