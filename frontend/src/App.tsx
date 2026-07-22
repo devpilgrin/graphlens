@@ -7,6 +7,7 @@ import GraphCanvas, { type GraphCanvasHandle } from "./components/GraphCanvas";
 import SearchPanel from "./components/SearchPanel";
 import ExtractPanel from "./components/ExtractPanel";
 import NodeInfo from "./components/NodeInfo";
+import ExportModal from "./components/ExportModal";
 
 export default function App() {
   const [collections, setCollections] = useState<QdrantCollection[]>([]);
@@ -20,6 +21,7 @@ export default function App() {
   const [confirmClear, setConfirmClear] = useState(false);
   const [clearing, setClearing] = useState(false);
   const [activeTypes, setActiveTypes] = useState<Set<string>>(new Set());
+  const [showExport, setShowExport] = useState(false);
   const canvasRef = useRef<GraphCanvasHandle>(null);
 
   useEffect(() => {
@@ -128,6 +130,7 @@ export default function App() {
         onCollectionChange={setCollection}
         stats={stats}
         healthy={healthy}
+        onExport={() => setShowExport(true)}
       />
 
       <div className="flex min-h-0 flex-1">
@@ -260,6 +263,15 @@ export default function App() {
           </div>
         </aside>
       </div>
+
+      {showExport && (
+        <ExportModal
+          nodes={graph.nodes}
+          edges={graph.edges}
+          typeColors={typeColors}
+          onClose={() => setShowExport(false)}
+        />
+      )}
     </div>
   );
 }
