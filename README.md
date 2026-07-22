@@ -1,5 +1,12 @@
 # GraphLens
 
+![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
+![Python](https://img.shields.io/badge/Python-3.12+-3776AB?logo=python&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-009688?logo=fastapi&logoColor=white)
+![Neo4j](https://img.shields.io/badge/Neo4j-008CC1?logo=neo4j&logoColor=white)
+![Qdrant](https://img.shields.io/badge/Qdrant-EE4C2C?logo=qdrant&logoColor=white)
+![React](https://img.shields.io/badge/React-61DAFB?logo=react&logoColor=black)
+
 Графовый поиск как надстройка над любой Qdrant БД.
 
 ![GraphLens UI](docs/img/graphlens-ui.png)
