@@ -39,13 +39,14 @@ interface Props {
   typeColors: Map<string, string>;
   selected: string | null;
   onSelect: (name: string | null) => void;
+  activeTypes: Set<string>;
 }
 
 const linkEnd = (v: GNode | string | number | undefined): string =>
   typeof v === "object" && v !== null ? String(v.id) : String(v ?? "");
 
 const GraphCanvas = forwardRef<GraphCanvasHandle, Props>(function GraphCanvas(
-  { nodes, edges, typeColors, selected, onSelect },
+  { nodes, edges, typeColors, selected, onSelect, activeTypes },
   ref,
 ) {
   const fgRef = useRef<ForceGraphMethods<GNode, GLink>>();
@@ -86,8 +87,23 @@ const GraphCanvas = forwardRef<GraphCanvasHandle, Props>(function GraphCanvas(
       description: n.description,
       degree: degree.get(n.name) ?? 0,
     }));
-    return { nodes: gnodes, links };
-  }, [nodes, edges]);
+
+    // Фильтрация по activeTypes — скрываем узлы И их рёбра
+    const visible = new Set<string>();
+    for (const n of gnodes) {
+      if (activeTypes.has(n.type)) visible.add(n.name);
+    }
+    const filteredNodes = gnodes.filter((n) => visible.has(n.name));
+    const filteredLinks = links.filter(
+      (l) =>
+        typeof l.source === "string" &&
+        typeof l.target === "string" &&
+        visible.has(l.source) &&
+        visible.has(l.target),
+    );
+
+    return { nodes: filteredNodes, links: filteredLinks };
+  }, [nodes, edges, activeTypes]);
 
   const neighborhood = useMemo(() => {
     const focus = selected ?? hovered;
