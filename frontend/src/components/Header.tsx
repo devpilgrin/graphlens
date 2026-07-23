@@ -6,6 +6,7 @@ interface Props {
   onCollectionChange: (name: string) => void;
   stats: GraphStats | null;
   healthy: boolean | null;
+  onExport?: () => void;
 }
 
 function StatChip({ label, value }: { label: string; value: number }) {
@@ -23,6 +24,7 @@ export default function Header({
   onCollectionChange,
   stats,
   healthy,
+  onExport,
 }: Props) {
   return (
     <header className="flex h-14 shrink-0 items-center gap-4 border-b border-line bg-panel px-4 shadow-sm shadow-black/20">
@@ -62,6 +64,20 @@ export default function Header({
       </label>
 
       <div className="ml-auto flex items-center gap-2">
+        {onExport && (
+          <button
+            onClick={onExport}
+            className="flex items-center gap-1.5 rounded-lg border border-line bg-panel-2 px-3 py-1.5 text-xs text-ink transition hover:border-accent hover:text-accent"
+            title="Экспорт графа"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" y1="15" x2="12" y2="3" />
+            </svg>
+            Экспорт
+          </button>
+        )}
         {stats ? (
           <>
             <StatChip label="сущностей" value={stats.entities} />
