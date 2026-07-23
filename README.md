@@ -6,6 +6,7 @@
 ![Neo4j](https://img.shields.io/badge/Neo4j-008CC1?logo=neo4j&logoColor=white)
 ![Qdrant](https://img.shields.io/badge/Qdrant-EE4C2C?logo=qdrant&logoColor=white)
 ![React](https://img.shields.io/badge/React-61DAFB?logo=react&logoColor=black)
+![AI Code Review](https://github.com/devpilgrin/graphlens/actions/workflows/ai-review.yml/badge.svg)
 
 Графовый поиск как надстройка над любой Qdrant БД.
 
