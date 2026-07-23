@@ -185,14 +185,21 @@ def post_review(pr: dict, review: dict) -> None:
         gh_request("POST", f"/repos/{REPO}/pulls/{PR_NUMBER}/reviews", payload)
         print(f"Review posted: {verdict}, inline comments: {len(inline)}")
     except urllib.error.HTTPError as e:
-        # Фолбэк: обычный комментарий без inline
-        print(f"Review failed ({e.code}), fallback to comment", file=sys.stderr)
-        gh_request(
-            "POST",
-            f"/repos/{REPO}/issues/{PR_NUMBER}/comments",
-            {"body": format_body(review, pr)},
-        )
-        print("Posted as plain comment")
+        # 422 = inline-линии вне diff: повторяем review без inline (сохраняем вердикт)
+        print(f"Review with inline failed ({e.code}), retrying without inline", file=sys.stderr)
+        payload.pop("comments", None)
+        try:
+            gh_request("POST", f"/repos/{REPO}/pulls/{PR_NUMBER}/reviews", payload)
+            print(f"Review posted without inline: {verdict}")
+        except urllib.error.HTTPError as e2:
+            # Фолбэк: обычный комментарий
+            print(f"Review failed ({e2.code}), fallback to comment", file=sys.stderr)
+            gh_request(
+                "POST",
+                f"/repos/{REPO}/issues/{PR_NUMBER}/comments",
+                {"body": format_body(review, pr)},
+            )
+            print("Posted as plain comment")
 
 
 def main() -> None:
